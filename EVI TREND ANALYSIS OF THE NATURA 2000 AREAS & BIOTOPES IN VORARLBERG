@@ -1,0 +1,90 @@
+//EVI TREND ANALYSIS OF THE NATURA 2000 AREAS & BIOTOPES IN VORARLBERG
+
+//Note: 
+//1) This code is adapted from B. Hoekstra (https://code.earthengine.google.com/0fdaf63fa92540feb2c24b5ac7c58299).
+//2) This code runs the EVI trend analysis for the Natura 2000 (N2000) areas, but the biotope codes are also included.
+
+//Load dataset N2000/Biotopes.
+var N2000 = ee.FeatureCollection('users/BN2/N2000');
+// var Biotopes1 = ee.FeatureCollection('users/BN2/Biotopes1');
+// var Biotopes2 = ee.FeatureCollection('users/BN2/Biotopes2');
+// var Biotopes3 = ee.FeatureCollection('users/BN2/Biotopes3');
+// var Biotopes4 = ee.FeatureCollection('users/BN2/Biotopes4');
+
+//Define region of interest (roi).
+var roi = N2000.geometry();
+// var roi = Biotopes1.geometry();
+// var roi = Biotopes2.geometry();
+// var roi = Biotopes3.geometry();
+// var roi = Biotopes4.geometry();
+
+//Create a function to select the roi and mask all the other regions.
+var clipToROI = function(image) {
+  return image.clip(roi)
+};
+
+//Download 'Landsat 5 TM Collection 1 Tier 1 8-Day EVI Composite' OR 'Landsat 5 TM Collection 1 Tier 1 32-Day EVI Composite' and filter for the year(s) and roi.
+var landsat = ee.ImageCollection('LANDSAT/LT05/C01/T1_32DAY_EVI')
+  .filterDate('1990-01-01', '2011-12-31') // 1990-2011
+  // .filterDate('1990-01-01', '2000-12-31') // 1990-2000
+  // .filterDate('1990-01-01', '2006-12-31') // 1990-2006
+  // .filterDate('2000-01-01', '2006-12-31') // 2000-2006
+  // .filterDate('2000-01-01', '2011-12-31') // 2000-2011
+  // .filterDate('2006-01-01', '2011-12-31') // 2006-2011
+  .map(clipToROI);
+
+// var landsat = ee.ImageCollection('LANDSAT/LT05/C01/T1_8DAY_EVI')
+    // .filterDate('1990-01-01', '1990-12-31') // 1990
+    // .filterDate('2000-01-01', '2000-12-31') // 2000
+    // .filterDate('2006-01-01', '2006-12-31') // 2006
+    // .filterDate('2011-01-01', '2011-12-31') // 2011
+    // .map(clipToROI);
+
+//Add a band representing the image timestamp. Code comes in milliseconds, thus alter to year.
+var addTime = function(image) {
+  return image.addBands(image.metadata('system:time_start')
+    .divide(1000 * 60 * 60 * 24 * 365));
+};
+
+//Define a new variable which combines the landsat variable with the image timestamp.
+var landsatTime = landsat.map(addTime);
+
+//Specify the time range with minimum (X-01-01) and maximum (X-12-31), and print it to the console.
+var range = landsatTime.reduceColumns(ee.Reducer.minMax(), ["system:time_start"]);
+print('Date range: ', ee.Date(range.get('min')), ee.Date(range.get('max')));
+
+//Create a new variable which selects the range from landsatTime and create a linear fit. 
+var trend = landsatTime.select(['system:time_start', 'EVI'])
+    .reduce(ee.Reducer.linearFit());
+
+//Print the image.
+print(trend);
+
+//Export the image to Google Drive. Select image, provide description/name and define scale, file format and region.
+Export.image.toDrive(
+  {
+    image: trend,
+    description: 'EVI_N2000_19902011', // description: 'EVI_Biotopes1_19902011', // description: 'EVI_Biotopes2_19902011', // description: 'EVI_Biotopes3_19902011', // description: 'EVI_Biotopes4_19902011',
+    // description: 'EVI_N2000_19902000', // description: 'EVI_Biotopes1_19902000', // description: 'EVI_Biotopes2_19902000', // description: 'EVI_Biotopes3_19902000', // description: 'EVI_Biotopes4_19902000',
+    // description: 'EVI_N2000_19902006', // description: 'EVI_Biotopes1_19902006', // description: 'EVI_Biotopes2_19902006', // description: 'EVI_Biotopes3_19902006', // description: 'EVI_Biotopes4_19902006',
+    // description: 'EVI_N2000_20002006', // description: 'EVI_Biotopes1_20002006', // description: 'EVI_Biotopes2_20002006', // description: 'EVI_Biotopes3_20002006', // description: 'EVI_Biotopes4_20002006',
+    // description: 'EVI_N2000_20002011', // description: 'EVI_Biotopes1_20002011', // description: 'EVI_Biotopes2_20002011', // description: 'EVI_Biotopes3_20002011', // description: 'EVI_Biotopes4_20002011',
+    // description: 'EVI_N2000_20062011', // description: 'EVI_Biotopes1_20062011', // description: 'EVI_Biotopes2_20062011', // description: 'EVI_Biotopes3_20062011', // description: 'EVI_Biotopes4_20062011',
+    // description: 'EVI_N2000_1990', // description: 'EVI_Biotopes1_1990', // description: 'EVI_Biotopes2_1990', // description: 'EVI_Biotopes3_1990', // description: 'EVI_Biotopes4_1990',
+    // description: 'EVI_N2000_2000', // description: 'EVI_Biotopes1_2000', // description: 'EVI_Biotopes2_2000', // description: 'EVI_Biotopes3_2000', // description: 'EVI_Biotopes4_2000',
+    // description: 'EVI_N2000_2006', // description: 'EVI_Biotopes1_2006', // description: 'EVI_Biotopes2_2006', // description: 'EVI_Biotopes3_2006', // description: 'EVI_Biotopes4_2006',
+    // description: 'EVI_N2000_2011', // description: 'EVI_Biotopes1_2011', // description: 'EVI_Biotopes2_2011', // description: 'EVI_Biotopes3_2011', // description: 'EVI_Biotopes4_2011',
+    scale: 30,
+    fileFormat: 'GeoTIFF',
+    region: roi
+  });
+  
+//Focus map on roi.
+Map.centerObject(roi, 9);
+
+//Add the N2000 areas to the map.
+Map.addLayer(roi, {color: 'black'}, 'N2000');
+// Map.addLayer(roi, {color: 'black'}, 'Biotopes1');
+// Map.addLayer(roi, {color: 'black'}, 'Biotopes2');
+// Map.addLayer(roi, {color: 'black'}, 'Biotopes3');
+// Map.addLayer(roi, {color: 'black'}, 'Biotopes4');
